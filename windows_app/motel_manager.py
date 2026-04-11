@@ -22,6 +22,8 @@ class RoomView:
 
 
 class MotelStore:
+    VALID_STATUSES = {"available", "occupied", "cleaning"}
+
     def __init__(self, db_path: str = "motel_manager.db") -> None:
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path)
@@ -54,6 +56,9 @@ class MotelStore:
                 final_price INTEGER NOT NULL,
                 created_at TEXT NOT NULL
             );
+
+            CREATE INDEX IF NOT EXISTS idx_stay_history_checkout_at
+              ON stay_history (checkout_at);
             """
         )
         self.conn.commit()
@@ -101,8 +106,11 @@ class MotelStore:
         self._update_status(room_number, "available")
 
     def _update_status(self, room_number: str, status: str) -> None:
+        if status not in self.VALID_STATUSES:
+            raise ValueError(f"유효하지 않은 상태값입니다: {status}")
+        self._ensure_room_exists(room_number)
         now = datetime.now().isoformat(timespec="seconds")
-        self.conn.execute(
+        updated = self.conn.execute(
             """
             UPDATE rooms
             SET status = ?, updated_at = ?
@@ -110,6 +118,8 @@ class MotelStore:
             """,
             (status, now, room_number),
         )
+        if updated.rowcount == 0:
+            raise ValueError(f"객실을 찾을 수 없습니다: {room_number}")
         self.conn.commit()
 
     def check_in(
@@ -120,8 +130,19 @@ class MotelStore:
         checkout_at: str,
         price: int,
     ) -> None:
+        if not guest_name or not guest_name.strip():
+            raise ValueError("고객명은 필수입니다.")
+        if price < 0:
+            raise ValueError("요금은 0 이상이어야 합니다.")
+
+        room = self._get_room(room_number)
+        if room is None:
+            raise ValueError(f"객실을 찾을 수 없습니다: {room_number}")
+        if room["status"] == "occupied":
+            raise ValueError(f"이미 사용 중인 객실입니다: {room_number}")
+
         now = datetime.now().isoformat(timespec="seconds")
-        self.conn.execute(
+        updated = self.conn.execute(
             """
             UPDATE rooms
             SET status = 'occupied',
@@ -135,12 +156,12 @@ class MotelStore:
             """,
             (guest_name, guest_phone, now, checkout_at, price, now, room_number),
         )
+        if updated.rowcount == 0:
+            raise ValueError(f"객실을 찾을 수 없습니다: {room_number}")
         self.conn.commit()
 
     def check_out(self, room_number: str) -> None:
-        room = self.conn.execute(
-            "SELECT * FROM rooms WHERE room_number = ?", (room_number,)
-        ).fetchone()
+        room = self._get_room(room_number)
         if not room or room["status"] != "occupied":
             return
 
@@ -176,6 +197,15 @@ class MotelStore:
             (now, room_number),
         )
         self.conn.commit()
+
+    def _get_room(self, room_number: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM rooms WHERE room_number = ?", (room_number,)
+        ).fetchone()
+
+    def _ensure_room_exists(self, room_number: str) -> None:
+        if self._get_room(room_number) is None:
+            raise ValueError(f"객실을 찾을 수 없습니다: {room_number}")
 
     def stats(self) -> dict[str, int]:
         counts = self.conn.execute(
@@ -306,28 +336,44 @@ class MotelManagerApp:
             messagebox.showerror("오류", "요금은 숫자로 입력해주세요.")
             return
 
-        self.store.check_in(room_number, name, phone, checkout_at, price)
+        try:
+            self.store.check_in(room_number, name, phone, checkout_at, price)
+        except ValueError as error:
+            messagebox.showerror("오류", str(error))
+            return
         self.refresh()
 
     def checkout(self) -> None:
         room_number = self._selected_room()
         if not room_number:
             return
-        self.store.check_out(room_number)
+        try:
+            self.store.check_out(room_number)
+        except ValueError as error:
+            messagebox.showerror("오류", str(error))
+            return
         self.refresh()
 
     def mark_cleaning(self) -> None:
         room_number = self._selected_room()
         if not room_number:
             return
-        self.store.set_cleaning(room_number)
+        try:
+            self.store.set_cleaning(room_number)
+        except ValueError as error:
+            messagebox.showerror("오류", str(error))
+            return
         self.refresh()
 
     def mark_available(self) -> None:
         room_number = self._selected_room()
         if not room_number:
             return
-        self.store.set_available(room_number)
+        try:
+            self.store.set_available(room_number)
+        except ValueError as error:
+            messagebox.showerror("오류", str(error))
+            return
         self.refresh()
 
 

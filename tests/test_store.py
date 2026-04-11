@@ -31,6 +31,23 @@ class MotelStoreTest(unittest.TestCase):
         stats = self.store.stats()
         self.assertGreaterEqual(stats["today_revenue"], 70000)
 
+    def test_checkin_validation(self):
+        with self.assertRaises(ValueError):
+            self.store.check_in("101", "", "010", "", 1000)
+        with self.assertRaises(ValueError):
+            self.store.check_in("101", "홍길동", "010", "", -1)
+        with self.assertRaises(ValueError):
+            self.store.check_in("999", "홍길동", "010", "", 1000)
+
+    def test_prevent_double_occupancy(self):
+        self.store.check_in("101", "첫손님", "010", "", 30000)
+        with self.assertRaises(ValueError):
+            self.store.check_in("101", "두번째손님", "010", "", 30000)
+
+    def test_invalid_room_status_update(self):
+        with self.assertRaises(ValueError):
+            self.store.set_cleaning("999")
+
 
 if __name__ == "__main__":
     unittest.main()
