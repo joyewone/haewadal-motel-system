@@ -1,6 +1,8 @@
-# Windows 프로그램 실행 가이드
+# Windows 프로그램 실행 가이드 (Python 버전)
 
-`windows_app/motel_manager.py`는 Tkinter + SQLite 기반의 Windows 데스크톱 객실관리 프로그램입니다.
+> Python 설치 없이 실행되는 버전이 필요하면 `windows_native_app` 폴더를 사용하세요.
+
+`windows_app/motel_manager.py`는 Tkinter + SQLite 기반의 Python 데스크톱 객실관리 프로그램입니다.
 
 ## 실행 방법
 
@@ -16,13 +18,3 @@ python windows_app/motel_manager.py
 - 체크인 / 체크아웃
 - 청소중 / 이용가능 상태 전환
 - 오늘 매출 집계
-
-## Windows 배포(단일 exe)
-
-PyInstaller가 있다면 다음 명령으로 exe 생성 가능합니다.
-
-```bash
-pyinstaller --onefile --windowed --name HaewadalMotel windows_app/motel_manager.py
-```
-
-생성 파일: `dist/HaewadalMotel.exe`
